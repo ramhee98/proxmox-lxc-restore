@@ -3,6 +3,9 @@
 # Always restores from the same backup file
 # Logs all actions with timestamps
 
+# Ensure full path for cron
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+
 # Configuration
 CTID=YOUR_CONTAINER_ID
 BACKUP_FILE="/path/to/vzdump-lxc-YOUR_CONTAINER_ID-YOUR_BACKUP_TIMESTAMP.tar.zst" # e.g. "/var/lib/vz/dump/vzdump-lxc-100-2025_01_01-00_00_00.tar.zst"
