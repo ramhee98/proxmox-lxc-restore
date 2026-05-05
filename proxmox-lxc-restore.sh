@@ -10,6 +10,18 @@ export PATH="/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 # undetected (the previous version logged failures and kept going).
 set -o pipefail
 
+# When this script is run from cron the only thing the operator typically
+# sees is whatever lands on stderr (cron emails it). Print a clear summary
+# there on any non-zero exit so failures surface immediately instead of
+# being buried in the log file.
+on_failure() {
+    local exit_code=$?
+    if [ "$exit_code" -ne 0 ]; then
+        echo "lxc-restore FAILED (exit $exit_code) for CTID=${CTID:-?}; see ${LOG_FILE:-/var/log/lxc-restore.log}" >&2
+    fi
+}
+trap on_failure EXIT
+
 # Configuration
 CTID=YOUR_CONTAINER_ID
 BACKUP_FILE="/path/to/vzdump-lxc-YOUR_CONTAINER_ID-YOUR_BACKUP_TIMESTAMP.tar.zst" # e.g. "/var/lib/vz/dump/vzdump-lxc-100-2025_01_01-00_00_00.tar.zst"
