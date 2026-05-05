@@ -98,6 +98,37 @@ if [ ! -r "$BACKUP_FILE" ]; then
     exit 1
 fi
 
+# Pre-flight: verify the backup archive is structurally valid by listing
+# its contents. A corrupted .tar.zst (or truncated download) catches here
+# before we destroy the running container.
+echo "Verifying backup archive integrity..." >> "$LOG_FILE"
+case "$BACKUP_FILE" in
+    *.tar.zst|*.tar.gz|*.tar.lzo|*.tar)
+        if ! tar -tf "$BACKUP_FILE" >/dev/null 2>>"$LOG_FILE"; then
+            echo "ERROR: Backup archive '$BACKUP_FILE' is unreadable or corrupted. Aborting." >> "$LOG_FILE"
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Skipping integrity check: unrecognised archive extension." >> "$LOG_FILE"
+        ;;
+esac
+
+# Pre-flight: make sure there is roughly enough free space on the backup
+# filesystem to extract the archive. We require the dump directory to
+# have at least 2x the compressed size free, which is conservative for
+# typical compression ratios. This is a heuristic; pct restore will still
+# do its own checks against the target storage.
+backup_dir=$(dirname -- "$BACKUP_FILE")
+backup_bytes=$(stat -c '%s' "$BACKUP_FILE" 2>/dev/null || echo 0)
+required_bytes=$((backup_bytes * 2))
+free_kib=$(df -P -k "$backup_dir" | awk 'NR==2 {print $4}')
+free_bytes=$((free_kib * 1024))
+if [ "$free_bytes" -lt "$required_bytes" ]; then
+    echo "ERROR: Only ${free_bytes} bytes free on $backup_dir but ~${required_bytes} needed (2x backup size). Aborting." >> "$LOG_FILE"
+    exit 1
+fi
+
 # Stop container
 echo "Stopping container $CTID..." >> "$LOG_FILE"
 if ! pct stop "$CTID" >> "$LOG_FILE" 2>&1; then
