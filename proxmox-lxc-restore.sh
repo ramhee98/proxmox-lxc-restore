@@ -23,10 +23,45 @@ on_failure() {
 trap on_failure EXIT
 
 # Configuration
-CTID=YOUR_CONTAINER_ID
-BACKUP_FILE="/path/to/vzdump-lxc-YOUR_CONTAINER_ID-YOUR_BACKUP_TIMESTAMP.tar.zst" # e.g. "/var/lib/vz/dump/vzdump-lxc-100-2025_01_01-00_00_00.tar.zst"
-STORAGE="YOUR_STORAGE_NAME"    # optional, e.g. "NVMe-Mirror"
-LOG_FILE="/var/log/lxc-restore.log"
+# Defaults below can be overridden in three ways (highest precedence first):
+#   1. CLI flags:  --ctid 100 --backup /path/to.tar.zst --storage NVMe --log-file /var/log/x.log
+#   2. Env vars:   CTID, BACKUP_FILE, STORAGE, LOG_FILE
+#   3. Edit these defaults directly (existing behaviour).
+: "${CTID:=YOUR_CONTAINER_ID}"
+: "${BACKUP_FILE:=/path/to/vzdump-lxc-YOUR_CONTAINER_ID-YOUR_BACKUP_TIMESTAMP.tar.zst}"
+: "${STORAGE:=YOUR_STORAGE_NAME}"
+: "${LOG_FILE:=/var/log/lxc-restore.log}"
+
+usage() {
+    cat <<EOF
+Usage: $0 [--ctid CTID] [--backup PATH] [--storage NAME] [--log-file PATH]
+
+Each option may also be supplied via the corresponding environment variable
+(CTID, BACKUP_FILE, STORAGE, LOG_FILE) or by editing the defaults at the top
+of the script.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --ctid)        CTID="$2"; shift 2 ;;
+        --backup)      BACKUP_FILE="$2"; shift 2 ;;
+        --storage)     STORAGE="$2"; shift 2 ;;
+        --log-file)    LOG_FILE="$2"; shift 2 ;;
+        -h|--help)     usage; exit 0 ;;
+        *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+# Refuse to run with the placeholder defaults still in place.
+if [ "$CTID" = "YOUR_CONTAINER_ID" ] || [ -z "$CTID" ]; then
+    echo "ERROR: CTID is not configured. Pass --ctid, set \$CTID, or edit the script." >&2
+    exit 2
+fi
+if [ "$BACKUP_FILE" = "/path/to/vzdump-lxc-YOUR_CONTAINER_ID-YOUR_BACKUP_TIMESTAMP.tar.zst" ]; then
+    echo "ERROR: BACKUP_FILE is not configured. Pass --backup, set \$BACKUP_FILE, or edit the script." >&2
+    exit 2
+fi
 LOG_MAX_BYTES=$((10 * 1024 * 1024))   # 10 MB
 LOG_KEEP_BACKUPS=5                     # how many .log.N files to keep
 
