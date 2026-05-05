@@ -6,6 +6,10 @@
 # Ensure full path for cron
 export PATH="/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
+# Abort on any failed command in a pipeline so partial restores can't go
+# undetected (the previous version logged failures and kept going).
+set -o pipefail
+
 # Configuration
 CTID=YOUR_CONTAINER_ID
 BACKUP_FILE="/path/to/vzdump-lxc-YOUR_CONTAINER_ID-YOUR_BACKUP_TIMESTAMP.tar.zst" # e.g. "/var/lib/vz/dump/vzdump-lxc-100-2025_01_01-00_00_00.tar.zst"
@@ -18,15 +22,24 @@ echo "Starting restore for container $CTID" >> "$LOG_FILE"
 
 # Stop container
 echo "Stopping container $CTID..." >> "$LOG_FILE"
-pct stop "$CTID" >> "$LOG_FILE" 2>&1
+if ! pct stop "$CTID" >> "$LOG_FILE" 2>&1; then
+    echo "ERROR: pct stop failed for $CTID. Aborting." >> "$LOG_FILE"
+    exit 1
+fi
 
 # Restore container to specific storage (if provided)
 echo "Restoring from $BACKUP_FILE to storage $STORAGE..." >> "$LOG_FILE"
-pct restore "$CTID" "$BACKUP_FILE" --force 1 --storage "$STORAGE" >> "$LOG_FILE" 2>&1
+if ! pct restore "$CTID" "$BACKUP_FILE" --force 1 --storage "$STORAGE" >> "$LOG_FILE" 2>&1; then
+    echo "ERROR: pct restore failed for $CTID from $BACKUP_FILE. Aborting." >> "$LOG_FILE"
+    exit 1
+fi
 
 # Start container
 echo "Starting container $CTID..." >> "$LOG_FILE"
-pct start "$CTID" >> "$LOG_FILE" 2>&1
+if ! pct start "$CTID" >> "$LOG_FILE" 2>&1; then
+    echo "ERROR: pct start failed for $CTID after restore." >> "$LOG_FILE"
+    exit 1
+fi
 
 # Finish
 echo "Restore completed successfully." >> "$LOG_FILE"
