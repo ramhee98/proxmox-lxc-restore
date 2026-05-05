@@ -15,6 +15,26 @@ CTID=YOUR_CONTAINER_ID
 BACKUP_FILE="/path/to/vzdump-lxc-YOUR_CONTAINER_ID-YOUR_BACKUP_TIMESTAMP.tar.zst" # e.g. "/var/lib/vz/dump/vzdump-lxc-100-2025_01_01-00_00_00.tar.zst"
 STORAGE="YOUR_STORAGE_NAME"    # optional, e.g. "NVMe-Mirror"
 LOG_FILE="/var/log/lxc-restore.log"
+LOG_MAX_BYTES=$((10 * 1024 * 1024))   # 10 MB
+LOG_KEEP_BACKUPS=5                     # how many .log.N files to keep
+
+# Lightweight built-in log rotation: when the log exceeds LOG_MAX_BYTES,
+# shift .4 → .5, .3 → .4, ... and start a fresh log. Avoids relying on a
+# system logrotate config (the script may run on hosts without one).
+rotate_log_if_needed() {
+    [ -f "$LOG_FILE" ] || return 0
+    local size
+    size=$(stat -c '%s' "$LOG_FILE" 2>/dev/null || echo 0)
+    if [ "$size" -gt "$LOG_MAX_BYTES" ]; then
+        local i
+        for ((i=LOG_KEEP_BACKUPS-1; i>=1; i--)); do
+            [ -f "${LOG_FILE}.${i}" ] && mv -f "${LOG_FILE}.${i}" "${LOG_FILE}.$((i+1))"
+        done
+        mv -f "$LOG_FILE" "${LOG_FILE}.1"
+        : > "$LOG_FILE"
+    fi
+}
+rotate_log_if_needed
 
 # Timestamp for the log
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') ===" >> "$LOG_FILE"
