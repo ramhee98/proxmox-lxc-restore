@@ -105,6 +105,14 @@ if ! pct stop "$CTID" >> "$LOG_FILE" 2>&1; then
     exit 1
 fi
 
+# Confirm the container is actually stopped before doing a destructive
+# --force restore. `pct status` prints something like "status: stopped".
+ct_status=$(pct status "$CTID" 2>>"$LOG_FILE" | awk '{print $2}')
+if [ "$ct_status" != "stopped" ]; then
+    echo "ERROR: Container $CTID is in state '$ct_status' after pct stop; refusing to --force restore." >> "$LOG_FILE"
+    exit 1
+fi
+
 # Restore container to specific storage (if provided)
 echo "Restoring from $BACKUP_FILE to storage $STORAGE..." >> "$LOG_FILE"
 if ! pct restore "$CTID" "$BACKUP_FILE" --force 1 --storage "$STORAGE" >> "$LOG_FILE" 2>&1; then
