@@ -20,6 +20,17 @@ LOG_FILE="/var/log/lxc-restore.log"
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') ===" >> "$LOG_FILE"
 echo "Starting restore for container $CTID" >> "$LOG_FILE"
 
+# Verify the backup file is actually present and readable before doing
+# anything destructive (stopping the container).
+if [ ! -f "$BACKUP_FILE" ]; then
+    echo "ERROR: Backup file '$BACKUP_FILE' not found. Aborting." >> "$LOG_FILE"
+    exit 1
+fi
+if [ ! -r "$BACKUP_FILE" ]; then
+    echo "ERROR: Backup file '$BACKUP_FILE' exists but is not readable. Aborting." >> "$LOG_FILE"
+    exit 1
+fi
+
 # Stop container
 echo "Stopping container $CTID..." >> "$LOG_FILE"
 if ! pct stop "$CTID" >> "$LOG_FILE" 2>&1; then
